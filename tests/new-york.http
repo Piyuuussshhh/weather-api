@@ -1,0 +1,1 @@
+GET http://localhost:8080/weather?lat=40.7484&long=73.9857 HTTP/1.1
