@@ -1,15 +1,33 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/Piyuuussshhh/weather-api/cache"
 	"github.com/Piyuuussshhh/weather-api/weather"
 )
 
-func Route() error {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+func Route(ctx context.Context) error {
+	cache, err := cache.NewCache()
+	if err != nil {
+		return err
+	}
+	
+	go func() {
+		<-ctx.Done()
+		if err := cache.Client.Close(); err != nil {
+			fmt.Printf("[ERROR] Failed to close cache client: %v\n", err)
+		} else {
+			fmt.Println("[INFO] Cache client closed successfully.")
+		}
+	}()
+	
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "[ERROR] Please use the /weather?lat={}&long={} endpoint.", http.StatusNotFound)
 	})
 
@@ -22,19 +40,33 @@ func Route() error {
 			return
 		}
 
-		weather, err := weather.GetWeather(r.Context(), lat, long)
+		weather, err := weather.GetWeather(r.Context(), cache, lat, long)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("[ERROR] %s\n", err.Error()), http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusFound)
+		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(*weather); err != nil {
 			http.Error(w, "[ERROR] Could not encode weather data to JSON", http.StatusInternalServerError)
 			return
 		}
 	})
 
-	return http.ListenAndServe(":8080", nil)
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+
+	go func() {
+		<-ctx.Done()
+		if err := server.Shutdown(ctx); err != nil {
+			fmt.Printf("[ERROR] Failed to shutdown server: %v\n", err)
+		} else {
+			fmt.Println("[INFO] Server shutdown successfully.")
+		}
+	}()
+
+	return server.ListenAndServe()
 }

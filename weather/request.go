@@ -13,7 +13,7 @@ import (
 
 const base_url = "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/"
 
-func GetWeather(ctx context.Context, lat, long string) (*Weather, error) {
+func GetWeather(ctx context.Context, cache *cache.Cache, lat, long string) (*Weather, error) {
 	var weather Weather
 
 	// If city data is stored in cache, return that.
