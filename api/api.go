@@ -27,11 +27,7 @@ func Route(ctx context.Context) error {
 	
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "[ERROR] Please use the /weather?lat={}&long={} endpoint.", http.StatusNotFound)
-	})
-
-	http.HandleFunc("GET /weather", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /weather", func(w http.ResponseWriter, r *http.Request) {
 		lat := r.URL.Query().Get("lat")
 		long := r.URL.Query().Get("long")
 
