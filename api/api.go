@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/Piyuuussshhh/weather-api/cache"
+	"github.com/Piyuuussshhh/weather-api/middleware"
 	"github.com/Piyuuussshhh/weather-api/weather"
+	"golang.org/x/time/rate"
 )
 
 func Route(ctx context.Context) error {
@@ -27,28 +30,32 @@ func Route(ctx context.Context) error {
 	
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /weather", func(w http.ResponseWriter, r *http.Request) {
-		lat := r.URL.Query().Get("lat")
-		long := r.URL.Query().Get("long")
+	rl := middleware.NewRateLimiter(rate.Every(1*time.Second), 5) // 5 requests per second
 
-		if lat == "" || long == "" {
-			http.Error(w, "[ERROR] Invalid latitude longitude values", http.StatusBadRequest)
-			return
-		}
+	mux.HandleFunc("GET /weather", rl.Limit(
+		func(w http.ResponseWriter, r *http.Request) {
+			lat := r.URL.Query().Get("lat")
+			long := r.URL.Query().Get("long")
 
-		weather, err := weather.GetWeather(r.Context(), cache, lat, long)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("[ERROR] %s\n", err.Error()), http.StatusInternalServerError)
-			return
-		}
+			if lat == "" || long == "" {
+				http.Error(w, "[ERROR] Invalid latitude longitude values", http.StatusBadRequest)
+				return
+			}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(*weather); err != nil {
-			http.Error(w, "[ERROR] Could not encode weather data to JSON", http.StatusInternalServerError)
-			return
-		}
-	})
+			weather, err := weather.GetWeather(r.Context(), cache, lat, long)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("[ERROR] %s\n", err.Error()), http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(*weather); err != nil {
+				http.Error(w, "[ERROR] Could not encode weather data to JSON", http.StatusInternalServerError)
+				return
+			}
+		},
+	))
 
 	server := &http.Server{
 		Addr:    ":8080",
